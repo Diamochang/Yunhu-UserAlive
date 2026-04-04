@@ -1,0 +1,301 @@
+syntax = "proto3";
+
+package yunhu;
+
+// ==================== 基础消息结构 ====================
+
+// 状态信息(所有响应通用)
+message Status {
+  uint64 number = 1; // 请求ID
+  uint64 code = 2;   // 状态码,1为正常
+  string msg = 3;    // 返回消息
+}
+
+// ==================== WebSocket消息 ====================
+
+// WebSocket登录消息
+message WSLogin {
+  string seq = 1;
+  string cmd = 2;
+  LoginData data = 3;
+  
+  message LoginData {
+    string userId = 1;
+    string token = 2;
+    string platform = 3;
+    string deviceId = 4;
+  }
+}
+
+// WebSocket心跳消息
+message WSHeartbeat {
+  string seq = 1;
+  string cmd = 2;
+}
+
+// WebSocket退出登录消息
+message WSLogout {
+  string seq = 1;
+  string cmd = 2;
+  LogoutData data = 3;
+  
+  message LogoutData {
+    string deviceId = 1;
+  }
+}
+
+// ==================== 发送消息相关 ====================
+
+// 发送消息请求
+message SendMessageRequest {
+  string msg_id = 2;           // 信息ID
+  string chat_id = 3;          // 欲发送到的信息对象
+  uint64 chat_type = 4;        // 欲发送到的信息对象的类别，1-用户，2-群聊，3-机器人
+  Data data = 5;               // 消息数据
+  uint64 content_type = 6;     // 信息类别，1-文本，2-图片，3-markdown，4-文件，5-表单，6-文章，7-表情，8-html，11-语音，13-语音通话
+  uint64 command_id = 7;       // 所使用命令ID
+  string quote_msg_id = 8;     // 引用信息ID
+  Media media = 9;             // 媒体信息
+  
+  // 消息数据
+  message Data {
+    string text = 1;                    // 信息文本
+    string buttons = 2;                 // 按钮
+    string file_name = 4;               // 欲发送文件名称
+    string file_key = 5;                // 欲发送文件key
+    repeated string mentioned_id = 6;   // @用户ID,可以填写多个
+    string form = 7;                    // 表单消息
+    string quote_msg_text = 8;          // 引用信息文本
+    string image = 9;                   // 欲发送图片key/url(expression/abcdef.jpg)
+    string post_id = 10;                // 文章ID
+    string post_title = 11;             // 文章标题
+    string post_content = 12;           // 文章内容
+    string post_type = 13;              // 文章类型:1-文本,2-Markdown
+    string expression_id = 15;          // 个人表情ID
+    string quote_image_url = 16;        // 引用图片直链,https://...
+    string quote_image_name = 17;       // 引用图片文件名称
+    uint64 file_size = 18;              // 欲发送文件大小
+    string video = 19;                  // 欲发送视频key/url(123.mp4)
+    string audio = 21;                  // 语音key/url(123.m4a)
+    uint64 audio_time = 22;             // 语音秒数
+    string quote_video_url = 23;        // 引用视频直链,https://...
+    uint64 quote_video_time = 24;       // 引用视频时长
+    uint64 sticker_item_id = 25;        // 表情ID
+    uint64 sticker_pack_id = 26;        // 表情包ID
+    string room_name = 29;              // 语音房间发送显示信息的文本
+  }
+  
+  // 媒体信息(图片/音频/视频)
+  message Media {
+    string file_key = 1;      // 发送对象key(七牛对象存储file_key)
+    string file_hash = 2;     // 发送对象上传返回哈希
+    string file_type = 3;     // 发送对象类别，image/jpeg-图片，video/mp4-视频
+    uint64 image_height = 5;  // 图片高度
+    uint64 image_width = 6;   // 图片宽度
+    uint64 file_size = 7;     // 发送对象大小
+    string file_key2 = 8;     // 发送对象key,和1一样
+    string file_suffix = 9;   // 发送对象后缀名
+  }
+}
+
+// 发送消息响应
+message SendMessageResponse {
+  Status status = 1;
+}
+
+// ==================== 接收消息相关 ====================
+
+// 推送消息(WebSocket接收)
+message PushMessage {
+  Message msg = 1;
+  
+  message Message {
+    string msg_id = 1;            // 消息ID
+    Sender sender = 2;            // 发送者信息
+    string recv_id = 3;           // 接收者ID
+    string chat_id = 4;           // 聊天对象ID
+    int32 chat_type = 5;          // 聊天类型
+    Content content = 6;          // 消息内容
+    int32 content_type = 7;       // 内容类型
+    int64 timestamp = 8;          // 时间戳(毫秒)
+    Command cmd = 9;              // 指令信息
+    int32 msg_seq = 10;           // 消息序列
+    string direction = 11;        // 在聊天中的位置(left/right)
+    int64 send_time = 12;         // 发送时间(毫秒时间戳)
+    int64 msg_delete_time = 13;   // 消息撤回时间(毫秒时间戳)
+    string quote_msg_id = 14;     // 引用消息的ID
+    int64 edit_time = 15;         // 最后编辑时间
+    
+    // 发送者信息
+    message Sender {
+      string chat_id = 1;         // 发送者ID
+      int32 chat_type = 2;        // 发送者类型
+      string name = 3;            // 发送者名称
+      string avatar_url = 4;      // 头像URL
+      string tag_old = 5;         // 标签(旧版显示)
+      repeated Tag tags = 6;      // 标签列表
+      
+      message Tag {
+        int32 id = 1;             // 标签ID
+        string text = 2;          // 标签文字
+        string color = 3;         // 颜色(#FFFFFFFF)
+      }
+    }
+    
+    // 消息内容
+    message Content {
+      string text = 1;            // 文本内容
+      string buttons = 2;         // 按钮
+      string quote_msg_text = 3;  // 引用消息文本
+      // 其他字段参考SendMessageRequest.Data
+    }
+    
+    // 指令信息
+    message Command {
+      int32 id = 1;               // 指令ID
+      string name = 2;            // 指令名
+      int32 type = 3;             // 指令类型
+    }
+  }
+}
+
+// ==================== 消息列表相关 ====================
+
+// 按消息序列列出消息请求
+message ListMessageBySeqRequest {
+  uint64 msg_start = 3;    // 从第N个消息开始
+  uint64 chat_type = 4;    // 对象类型, 1-用户 2-群聊 3-机器人
+  string chat_id = 5;      // 对象ID
+}
+
+// 列出消息请求
+message ListMessageRequest {
+  uint64 msg_count = 1;    // 获取的消息数
+  string msg_id = 2;       // 从指定消息id开始,可不写
+  uint64 chat_type = 3;    // 对象类型,1-用户 2-群聊 3-机器人
+  string chat_id = 4;      // 对象ID
+}
+
+// 按消息ID列出消息请求
+message ListMessageByMidSeqRequest {
+  uint64 msg_seq = 1;      // 开始消息的seq,不写默认0
+  uint64 chat_type = 2;    // 对象类型,1-用户 2-群聊 3-机器人
+  string chat_id = 3;      // 对象ID
+  uint64 unknown = 4;      // 未知字段
+  uint64 msg_count = 5;    // 请求获取消息数量
+  string msg_id = 6;       // 消息ID
+}
+
+// 消息列表响应
+message ListMessageResponse {
+  Status status = 1;
+  repeated PushMessage.Message msg = 2;  // 消息列表
+  uint64 total = 3;                      // 获取的消息数量
+}
+
+// ==================== 已读消息相关 ====================
+
+// 已读消息请求
+message ReadMessageRequest {
+  string seq = 1;
+  string cmd = 2;
+  ReadData data = 3;
+  
+  message ReadData {
+    string chatId = 1;
+    int32 chatType = 2;
+    string lastMsgId = 3;
+  }
+}
+
+// ==================== 聊天列表相关 ====================
+
+// 获取聊天列表请求
+message GetChatListRequest {
+  string seq = 1;
+  string cmd = 2;
+  ChatListData data = 3;
+  
+  message ChatListData {
+    int32 page = 1;
+    int32 pageSize = 2;
+  }
+}
+
+// ==================== 撤回消息相关 ====================
+
+// 撤回消息请求
+message RecallMessageRequest {
+  string msg_id = 1;       // 信息ID
+  string chat_id = 2;      // 信息所属对象ID
+  uint64 chat_type = 3;    // 信息所属对象类型, 1-用户 2-群聊 3-机器人
+}
+
+// 批量撤回消息请求
+message BatchRecallMessageRequest {
+  repeated string msg_id = 1;  // 信息ID列表
+  string chat_id = 2;          // 信息所属对象ID
+  uint64 chat_type = 3;        // 信息所属对象类型, 1-用户 2-群聊 3-机器人
+}
+
+// 撤回消息响应
+message RecallMessageResponse {
+  Status status = 1;
+}
+
+// ==================== 按钮事件相关 ====================
+
+// 按钮点击事件请求
+message ButtonReportRequest {
+  string msg_id = 1;         // 信息ID
+  uint64 chat_type = 2;      // 对象类型, 1-用户 2-群聊 3-机器人
+  string chat_id = 3;        // 对象ID
+  string user_id = 4;        // 按钮事件发送者ID
+  string button_value = 5;   // 欲点击按钮的值
+}
+
+// 按钮事件响应
+message ButtonReportResponse {
+  Status status = 1;
+}
+
+// ==================== 流式消息相关 ====================
+
+// 流式消息
+message StreamMessage {
+  StreamMsg msg = 1;
+  
+  message StreamMsg {
+    string msgId = 1;
+    string recvId = 2;
+    string chatId = 3;
+    string content = 4;
+  }
+}
+
+// ==================== 笔记同步相关 ====================
+
+// 输入信息同步
+message InputInfo {
+  string seq = 1;
+  string cmd = 2;
+  InputData data = 3;
+  
+  message InputData {
+    string chatId = 1;
+    string input = 2;
+    string deviceId = 3;
+  }
+}
+
+// 草稿同步(接收)
+message DraftInput {
+  string seq = 1;
+  string cmd = 2;
+  DraftData data = 3;
+  
+  message DraftData {
+    string chat_id = 1;
+    string input = 2;
+  }
+}

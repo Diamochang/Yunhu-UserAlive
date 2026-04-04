@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# 环境变量和配置
+.env
+*.local
+
+# 数据库
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志
+logs/*.log
+logs/*.pid
+
+# ProtoBuf 生成文件
+proto/generated/*
+!proto/generated/__init__.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# TOTP QR 码
+totp_qr.png
+
+# 临时文件
+*.tmp
+*.bak

@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  yunhu-useralive:
+    build: .
+    container_name: yunhu-useralive
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MASTER_PASSWORD=${MASTER_PASSWORD}
+      - ENCRYPTION_SALT=${ENCRYPTION_SALT:-production-salt-change-me}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      - DATABASE_PATH=/app/data/yunhu_useralive.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - yunhu-network
+    labels:
+      - "com.yunhu.useralive.description=云湖保活用户机器人"
+      - "com.yunhu.useralive.version=1.0.0"
+
+networks:
+  yunhu-network:
+    driver: bridge

@@ -1,0 +1,41 @@
+[Unit]
+Description=云湖保活用户机器人 (Yunhu-UserAlive)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yunhu
+Group=yunhu
+WorkingDirectory=/opt/yunhu-useralive
+
+# 环境变量
+EnvironmentFile=/opt/yunhu-useralive/.env
+
+# 启动命令
+ExecStart=/opt/yunhu-useralive/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 2 \
+    --threads 4 \
+    --timeout 120 \
+    --access-logfile /var/log/yunhu-useralive/access.log \
+    --error-logfile /var/log/yunhu-useralive/error.log \
+    --pid /run/yunhu-useralive/pid \
+    app:app
+
+# 重启策略
+Restart=on-failure
+RestartSec=10
+
+# 安全设置
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/yunhu-useralive/data /opt/yunhu-useralive/logs /var/log/yunhu-useralive
+
+# 资源限制
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
