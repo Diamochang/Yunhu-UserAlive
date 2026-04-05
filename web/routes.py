@@ -2,7 +2,7 @@
 Flask Web 控制台路由
 """
 
-from flask import Flask, render_template_string, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import pyotp
 import logging
 from datetime import datetime
@@ -10,6 +10,23 @@ from datetime import datetime
 from database.db_manager import DatabaseManager
 from auth.crypto import CryptoManager
 from auth.totp import TOTPManager
+from config import (
+    MASTER_PASSWORD,
+    FLASK_SECRET_KEY,
+    YUNHU_API_BASE_URL,
+    YUNHU_WS_URL,
+    CHECKIN_BOT_ID,
+    CHECKIN_GROUP_ID,
+    CHECKIN_DELAY_MIN,
+    CHECKIN_DELAY_MAX,
+    DEPLOYMENT_ENV,
+    YUNHU_EMAIL,
+    YUNHU_PASSWORD,
+    DEVICE_ID,
+    PLATFORM,
+    PROJECT_ROOT,
+    validate_config
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +34,7 @@ logger = logging.getLogger(__name__)
 def create_app(scheduler=None, ws_client=None):
     """创建 Flask 应用"""
     app = Flask(__name__)
-    app.secret_key = 'yunhu-useralive-secret-key-change-in-production'
+    app.secret_key = FLASK_SECRET_KEY
     
     db = DatabaseManager()
     crypto = CryptoManager()
@@ -30,13 +47,13 @@ def create_app(scheduler=None, ws_client=None):
             password = request.form.get('password')
             
             if not email or not password:
-                return render_template_string(LOGIN_TEMPLATE, error='邮箱和密码不能为空')
+                return render_template('login.html', error='邮箱和密码不能为空')
             
             # 使用 authenticate_user 进行验证(支持 bcrypt)
             user = db.authenticate_user(email, password)
             
             if not user:
-                return render_template_string(LOGIN_TEMPLATE, error='邮箱或密码错误')
+                return render_template('login.html', error='邮箱或密码错误')
             
             session['user_id'] = user['id']
             session['email'] = user['email']
@@ -47,7 +64,7 @@ def create_app(scheduler=None, ws_client=None):
             logger.info(f"用户 {email} 登录成功")
             return redirect(url_for('dashboard'))
         
-        return render_template_string(LOGIN_TEMPLATE)
+        return render_template('login.html')
     
     # 仪表板
     @app.route('/')
@@ -59,7 +76,7 @@ def create_app(scheduler=None, ws_client=None):
         settings = db.get_user_settings(session['user_id'])
         last_checkin = db.get_last_checkin(session['user_id'])
         
-        return render_template_string(DASHBOARD_TEMPLATE, 
+        return render_template('dashboard.html', 
                                      user=user, 
                                      settings=settings,
                                      last_checkin=last_checkin)
@@ -85,11 +102,14 @@ def create_app(scheduler=None, ws_client=None):
                 friend_chat_id = request.form.get('friend_chat_id')
                 friend_name = request.form.get('friend_name')
                 address = request.form.get('address')
+                local_farewell = request.form.get('local_final_farewell') == 'on'
+                farewell_message = request.form.get('farewell_message', '').strip() or None
                 
                 if friend_chat_id and address:
-                    encrypted_address = crypto.encrypt(address)
+                    # 使用OpenPGP加密住址(用户自行加密后填写)
+                    # 这里直接存储用户输入的密文
                     db.add_friend(session['user_id'], friend_chat_id, friend_name, 
-                                 encrypted_address)
+                                 address, local_farewell, farewell_message)
                     logger.info(f"添加好友: {friend_name}")
             
             elif action == 'set_farewell_delay':
@@ -105,18 +125,18 @@ def create_app(scheduler=None, ws_client=None):
                         db.set_auto_final_farewell_delay(session['user_id'], delay_seconds)
                         logger.info(f"设置电子终别延迟: {delay_hours}小时")
                     else:
-                        return render_template_string(SETTINGS_TEMPLATE, 
+                        return render_template('settings.html', 
                                                      error='密码验证失败',
                                                      settings=db.get_user_settings(session['user_id']),
                                                      friends=db.get_friends(session['user_id']),
-                                                     articles=db.get_article_links(session['user_id']))
+                                                     article_links=db.get_article_links(session['user_id']))
                 except Exception as e:
                     logger.error(f"密码验证异常: {str(e)}")
-                    return render_template_string(SETTINGS_TEMPLATE, 
+                    return render_template('settings.html', 
                                                  error='验证失败',
                                                  settings=db.get_user_settings(session['user_id']),
                                                  friends=db.get_friends(session['user_id']),
-                                                 articles=db.get_article_links(session['user_id']))
+                                                 article_links=db.get_article_links(session['user_id']))
             
             return redirect(url_for('settings'))
         
@@ -125,10 +145,10 @@ def create_app(scheduler=None, ws_client=None):
         friends = db.get_friends(session['user_id'])
         articles = db.get_article_links(session['user_id'])
         
-        return render_template_string(SETTINGS_TEMPLATE, 
+        return render_template('settings.html', 
                                      settings=settings_data,
                                      friends=friends, 
-                                     articles=articles)
+                                     article_links=articles)
     
     # API: 获取状态
     @app.route('/api/status')
@@ -136,11 +156,21 @@ def create_app(scheduler=None, ws_client=None):
         if 'user_id' not in session:
             return jsonify({'error': '未登录'}), 401
         
-        return jsonify({
+        status_data = {
             'websocket_connected': ws_client.connected if ws_client else False,
             'scheduler_running': scheduler.scheduler.running if scheduler else False,
             'timestamp': datetime.now().isoformat()
-        })
+        }
+        
+        # 添加 ProtoBuf 状态
+        if ws_client:
+            try:
+                stats = ws_client.get_stats()
+                status_data['proto'] = stats.get('proto_status', {})
+            except Exception as e:
+                logger.error(f"获取 ProtoBuf 状态失败: {e}")
+        
+        return jsonify(status_data)
     
     # API: 手动签到
     @app.route('/api/checkin', methods=['POST'])
@@ -153,6 +183,43 @@ def create_app(scheduler=None, ws_client=None):
             return jsonify({'success': True, 'message': '签到任务已触发'})
         
         return jsonify({'success': False, 'message': '调度器未初始化'}), 500
+    
+    # API: 更新托管设置
+    @app.route('/api/takeover_settings', methods=['POST'])
+    def api_update_takeover_settings():
+        if 'user_id' not in session:
+            return jsonify({'error': '未登录'}), 401
+        
+        try:
+            data = request.get_json()
+            enabled = data.get('enabled', False)
+            start_time = data.get('start_time', '00:00')
+            end_time = data.get('end_time', '06:00')
+            weekdays = data.get('weekdays', [1,2,3,4,5,6,7])  # 默认全部
+            
+            # 将星期列表转换为字符串
+            weekdays_str = ','.join(str(d) for d in weekdays)
+            
+            db.update_takeover_settings(
+                session['user_id'], 
+                enabled, 
+                start_time, 
+                end_time,
+                weekdays_str
+            )
+            
+            logger.info(f"用户 {session['email']} 更新托管设置: 启用={enabled}, 时间={start_time}-{end_time}, 星期={weekdays_str}")
+            
+            return jsonify({
+                'success': True,
+                'message': '托管设置已更新'
+            })
+        except Exception as e:
+            logger.error(f"更新托管设置失败: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': f'更新失败: {str(e)}'
+            }), 500
     
     # ==================== 健康检查和监控端点 ====================
     
@@ -254,170 +321,31 @@ def create_app(scheduler=None, ws_client=None):
         
         return jsonify(status)
     
+    # API: 更新好友终别消息
+    @app.route('/api/friend/farewell_message', methods=['POST'])
+    def api_update_farewell_message():
+        """更新好友的自定义终别消息"""
+        if 'user_id' not in session:
+            return jsonify({"error": "未认证"}), 401
+        
+        try:
+            data = request.get_json()
+            friend_chat_id = data.get('friend_chat_id')
+            farewell_message = data.get('farewell_message', '').strip() or None
+            
+            if not friend_chat_id:
+                return jsonify({"error": "缺少 friend_chat_id"}), 400
+            
+            db.update_farewell_message(session['user_id'], friend_chat_id, farewell_message)
+            logger.info(f"用户 {session['email']} 更新了好友 {friend_chat_id} 的终别消息")
+            
+            return jsonify({
+                "success": True,
+                "message": "终别消息已更新",
+                "farewell_message": farewell_message
+            })
+        except Exception as e:
+            logger.error(f"更新终别消息失败: {e}")
+            return jsonify({"error": str(e)}), 500
+    
     return app
-
-
-# ==================== HTML 模板 ====================
-
-LOGIN_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>登录 - 云湖保活机器人</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; }
-        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        .error { color: red; }
-    </style>
-</head>
-<body>
-    <h2>云湖保活机器人 - 登录</h2>
-    {% if error %}
-    <p class="error">{{ error }}</p>
-    {% endif %}
-    <form method="POST">
-        <input type="email" name="email" placeholder="邮箱" required>
-        <input type="password" name="password" placeholder="密码" required>
-        <button type="submit">登录</button>
-    </form>
-</body>
-</html>
-"""
-
-DASHBOARD_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>仪表板 - 云湖保活机器人</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .status { display: inline-block; padding: 5px 10px; border-radius: 3px; }
-        .status.online { background: #d4edda; color: #155724; }
-        .status.offline { background: #f8d7da; color: #721c24; }
-        a { color: #007bff; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>云湖保活机器人 - 仪表板</h1>
-    
-    <div class="card">
-        <h3>用户信息</h3>
-        <p>邮箱: {{ user.email }}</p>
-        <p>平台: {{ user.platform }}</p>
-    </div>
-    
-    <div class="card">
-        <h3>运行状态</h3>
-        <p>WebSocket: <span id="ws-status" class="status offline">检查中...</span></p>
-        <p>定时任务: <span id="scheduler-status" class="status offline">检查中...</span></p>
-        <p>最后签到: {{ last_checkin.checkin_time if last_checkin else '暂无记录' }}</p>
-    </div>
-    
-    <div class="card">
-        <h3>快速操作</h3>
-        <button onclick="manualCheckin()">立即签到</button>
-        <a href="/settings"><button style="margin-top: 10px;">进入设置</button></a>
-    </div>
-    
-    <script>
-        function updateStatus() {
-            fetch('/api/status')
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('ws-status').textContent = data.websocket_connected ? '在线' : '离线';
-                    document.getElementById('ws-status').className = 'status ' + (data.websocket_connected ? 'online' : 'offline');
-                    
-                    document.getElementById('scheduler-status').textContent = data.scheduler_running ? '运行中' : '已停止';
-                    document.getElementById('scheduler-status').className = 'status ' + (data.scheduler_running ? 'online' : 'offline');
-                });
-        }
-        
-        function manualCheckin() {
-            fetch('/api/checkin', {method: 'POST'})
-                .then(r => r.json())
-                .then(data => alert(data.message));
-        }
-        
-        updateStatus();
-        setInterval(updateStatus, 5000);
-    </script>
-</body>
-</html>
-"""
-
-SETTINGS_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>设置 - 云湖保活机器人</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        input, select { padding: 8px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; margin: 5px; }
-        button:hover { background: #0056b3; }
-        .error { color: red; }
-        a { color: #007bff; }
-    </style>
-</head>
-<body>
-    <h1>设置</h1>
-    
-    {% if error %}
-    <p class="error">{{ error }}</p>
-    {% endif %}
-    
-    <div class="card">
-        <h3>添加文章链接</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="add_article">
-            <input type="text" name="article_title" placeholder="文章标题" required>
-            <input type="url" name="article_url" placeholder="文章URL (如: yunhu://post-detail?id=xxx)" required>
-            <button type="submit">添加</button>
-        </form>
-        
-        <h4>已添加的文章:</h4>
-        <ul>
-        {% for article in articles %}
-            <li>{{ article.title }} - {{ article.url }}</li>
-        {% endfor %}
-        </ul>
-    </div>
-    
-    <div class="card">
-        <h3>添加信任好友</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="add_friend">
-            <input type="text" name="friend_chat_id" placeholder="好友云湖ID" required>
-            <input type="text" name="friend_name" placeholder="备注名">
-            <input type="text" name="address" placeholder="加密住址信息" required>
-            <button type="submit">添加</button>
-        </form>
-        
-        <h4>信任好友列表:</h4>
-        <ul>
-        {% for friend in friends %}
-            <li>{{ friend.friend_name or friend.friend_chat_id }} (ID: {{ friend.friend_chat_id }})</li>
-        {% endfor %}
-        </ul>
-    </div>
-    
-    <div class="card">
-        <h3>电子终别自动开启延迟</h3>
-        <form method="POST">
-            <input type="hidden" name="action" value="set_farewell_delay">
-            <input type="number" name="delay_hours" placeholder="延迟小时数 (0表示禁用)" min="0">
-            <input type="password" name="password" placeholder="输入密码确认" required>
-            <button type="submit">设置</button>
-        </form>
-        <p>当前延迟: {{ settings.auto_final_farewell_delay // 3600 if settings and settings.auto_final_farewell_delay else 0 }} 小时</p>
-    </div>
-    
-    <p><a href="/">返回仪表板</a></p>
-</body>
-</html>
-"""

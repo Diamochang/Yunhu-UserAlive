@@ -6,7 +6,7 @@ package yunhu;
 
 // 状态信息(所有响应通用)
 message Status {
-  uint64 number = 1; // 请求ID
+  uint64 number = 1; // 不知道干啥的,可能是请求ID
   uint64 code = 2;   // 状态码,1为正常
   string msg = 3;    // 返回消息
 }
@@ -31,6 +31,16 @@ message WSLogin {
 message WSHeartbeat {
   string seq = 1;
   string cmd = 2;
+}
+
+// WebSocket心跳响应
+message WSHeartbeatAck {
+  Data data = 1;
+  
+  message Data {
+    string id = 1;
+    string cmd = 2;
+  }
 }
 
 // WebSocket退出登录消息
@@ -71,7 +81,7 @@ message SendMessageRequest {
     string post_title = 11;             // 文章标题
     string post_content = 12;           // 文章内容
     string post_type = 13;              // 文章类型:1-文本,2-Markdown
-    string expression_id = 15;          // 个人表情ID
+    string expression_id = 15;          // 个人表情ID(不知道为啥为STR)
     string quote_image_url = 16;        // 引用图片直链,https://...
     string quote_image_name = 17;       // 引用图片文件名称
     uint64 file_size = 18;              // 欲发送文件大小
@@ -87,19 +97,42 @@ message SendMessageRequest {
   
   // 媒体信息(图片/音频/视频)
   message Media {
-    string file_key = 1;      // 发送对象key(七牛对象存储file_key)
+    string file_key = 1;      // 发送对象key(就是上传后七牛对象存储给你返回的file_key)
     string file_hash = 2;     // 发送对象上传返回哈希
     string file_type = 3;     // 发送对象类别，image/jpeg-图片，video/mp4-视频
     uint64 image_height = 5;  // 图片高度
     uint64 image_width = 6;   // 图片宽度
     uint64 file_size = 7;     // 发送对象大小
-    string file_key2 = 8;     // 发送对象key,和1一样
+    string file_key2 = 8;     // 发送对象key,和1一样,据说不写会报错
     string file_suffix = 9;   // 发送对象后缀名
   }
 }
 
 // 发送消息响应
 message SendMessageResponse {
+  Status status = 1;
+}
+
+// ==================== 编辑消息相关 ====================
+
+// 编辑消息请求
+message EditMessageRequest {
+  string msg_id = 2;           // 要编辑的消息ID
+  string chat_id = 3;          // 消息所属聊天对象的ID
+  int32 chat_type = 4;         // 消息所属聊天对象的类型,1-用户 2-群组 3-机器人
+  Content content = 5;         // 消息内容
+  uint64 content_type = 6;     // 信息类别，1-文本，3-markdown，8-html
+  string quote_msg_id = 8;     // 引用信息ID
+  
+  message Content {
+    string text = 1;           // 文本
+    string buttons = 2;        // 按钮
+    string quote_msg_text = 8; // 引用消息文字
+  }
+}
+
+// 编辑消息响应
+message EditMessageResponse {
   Status status = 1;
 }
 
@@ -113,48 +146,68 @@ message PushMessage {
     string msg_id = 1;            // 消息ID
     Sender sender = 2;            // 发送者信息
     string recv_id = 3;           // 接收者ID
-    string chat_id = 4;           // 聊天对象ID
-    int32 chat_type = 5;          // 聊天类型
+    string chat_id = 4;           // 会话的ID
+    uint64 chat_type = 5;         // 会话的类型,1-用户 2-群组 3-机器人
     Content content = 6;          // 消息内容
-    int32 content_type = 7;       // 内容类型
-    int64 timestamp = 8;          // 时间戳(毫秒)
-    Command cmd = 9;              // 指令信息
-    int32 msg_seq = 10;           // 消息序列
-    string direction = 11;        // 在聊天中的位置(left/right)
-    int64 send_time = 12;         // 发送时间(毫秒时间戳)
-    int64 msg_delete_time = 13;   // 消息撤回时间(毫秒时间戳)
-    string quote_msg_id = 14;     // 引用消息的ID
-    int64 edit_time = 15;         // 最后编辑时间
+    uint64 content_type = 7;      // 消息类型
+    uint64 timestamp = 8;         // 时间戳(毫秒)
+    Cmd cmd = 9;                  // 指令信息
+    uint64 delete_timestamp = 10; // 撤回消息时间
+    string quote_msg_id = 11;     // 引用消息ID
+    uint64 msg_seq = 12;          // 消息序列
     
     // 发送者信息
     message Sender {
       string chat_id = 1;         // 发送者ID
-      int32 chat_type = 2;        // 发送者类型
+      uint64 chat_type = 2;       // 发送者类型
       string name = 3;            // 发送者名称
       string avatar_url = 4;      // 头像URL
-      string tag_old = 5;         // 标签(旧版显示)
-      repeated Tag tags = 6;      // 标签列表
+      repeated string tag_old = 6; // 标签(旧版显示)
+      repeated Tag tag = 7;       // 标签
       
       message Tag {
-        int32 id = 1;             // 标签ID
-        string text = 2;          // 标签文字
-        string color = 3;         // 颜色(#FFFFFFFF)
+        uint64 id = 1;            // 标签ID
+        string text = 3;          // 标签文字
+        string color = 4;         // 颜色(#FFFFFFFF)
       }
     }
     
     // 消息内容
     message Content {
-      string text = 1;            // 文本内容
-      string buttons = 2;         // 按钮
-      string quote_msg_text = 3;  // 引用消息文本
-      // 其他字段参考SendMessageRequest.Data
+      string text = 1;                    // 消息内容
+      string buttons = 2;                 // 按钮
+      string image_url = 3;               // 图像URL
+      string file_name = 4;               // 文件名
+      string file_url = 5;                // 文件URL
+      string form = 7;                    // 表单消息
+      string quote_msg_text = 8;          // 引用消息文字
+      string sticker_url = 9;             // 表情URL
+      string post_id = 10;                // 文章ID
+      string post_title = 11;             // 文章标题
+      string post_content = 12;           // 文章内容
+      string post_content_type = 13;      // 文章类型
+      string expression_id = 15;          // 个人表情ID
+      string quote_image_url = 16;        // 引用图片直链
+      string quote_image_name = 17;       // 引用图片文件名称
+      uint64 file_size = 18;              // 文件/图片大小(字节)
+      string video_url = 19;              // 视频URL
+      string audio_url = 21;              // 语音URL
+      uint64 audio_time = 22;             // 语音时长
+      string quote_video_url = 23;        // 引用视频直链
+      uint64 quote_video_time = 24;       // 引用视频时长
+      uint64 sticker_item_id = 25;        // 表情ID
+      uint64 sticker_pack_id = 26;        // 表情包ID
+      string call_text = 29;              // 语音通话文字
+      string call_status_text = 32;       // 语音通话状态文字
+      uint64 width = 33;                  // 图片的宽度
+      uint64 height = 34;                 // 图片的高度
+      string tip = 37;                    // 提示信息
     }
     
     // 指令信息
-    message Command {
-      int32 id = 1;               // 指令ID
-      string name = 2;            // 指令名
-      int32 type = 3;             // 指令类型
+    message Cmd {
+      uint64 id = 1;            // 命令ID
+      string name = 2;          // 命令名称
     }
   }
 }
@@ -168,29 +221,237 @@ message ListMessageBySeqRequest {
   string chat_id = 5;      // 对象ID
 }
 
+// 按消息序列列出消息响应
+message ListMessageBySeqResponse {
+  Status status = 1;
+  repeated Msg msg = 2;
+  uint64 msg_count = 3;    // 消息数
+  
+  message Msg {
+    string msg_id = 1;
+    Sender sender = 2;
+    string direction = 3;           // 消息位置,左边/右边
+    uint64 content_type = 4;
+    Content content = 5;
+    uint64 send_time = 6;           // 时间戳(毫秒)
+    Cmd cmd = 7;                    // 指令
+    uint64 msg_delete_time = 8;     // 消息撤回时间
+    string quote_msg_id = 9;        // 引用消息ID
+    uint64 msg_seq = 10;
+    uint64 edit_time = 12;          // 最后编辑时间
+    
+    message Cmd {
+      string name = 2;              // 指令名
+      uint64 type = 4;              // 指令类型
+    }
+    
+    message Content {
+      string text = 1;
+      string buttons = 2;
+      string image_url = 3;
+      string file_name = 4;
+      string file_url = 5;
+      string form = 7;
+      string quote_msg_text = 8;
+      string sticker_url = 9;
+      string post_id = 10;
+      string post_title = 11;
+      string post_content = 12;
+      string post_content_type = 13;
+      string expression_id = 15;
+      string quote_image_url = 16;
+      string quote_image_name = 17;
+      uint64 file_size = 18;
+      string video_url = 19;
+      string audio_url = 21;
+      uint64 audio_time = 22;
+      string quote_video_url = 23;
+      uint64 quote_video_time = 24;
+      uint64 sticker_item_id = 25;
+      uint64 sticker_pack_id = 26;
+      string call_text = 29;
+      string call_status_text = 32;
+      uint64 width = 33;
+      uint64 height = 34;
+      string tip = 37;
+    }
+    
+    message Sender {
+      string chat_id = 1;
+      uint64 chat_type = 2;
+      string name = 3;
+      string avatar_url = 4;
+      repeated string tag_old = 6;
+      repeated Tag tag = 7;
+      
+      message Tag {
+        uint64 id = 1;
+        string text = 3;
+        string color = 4;
+      }
+    }
+  }
+}
+
 // 列出消息请求
 message ListMessageRequest {
-  uint64 msg_count = 1;    // 获取的消息数
-  string msg_id = 2;       // 从指定消息id开始,可不写
-  uint64 chat_type = 3;    // 对象类型,1-用户 2-群聊 3-机器人
-  string chat_id = 4;      // 对象ID
+  uint64 msg_count = 2;    // 获取消息数
+  string msg_id = 3;       // 从指定消息ID开始
+  uint64 chat_type = 4;    // 对象类型
+  string chat_id = 5;      // 对象ID
+}
+
+// 列出消息响应
+message ListMessageResponse {
+  Status status = 1;
+  repeated Msg msg = 2;
+  
+  message Msg {
+    string msg_id = 1;
+    Sender sender = 2;
+    string direction = 3;
+    uint64 content_type = 4;
+    Content content = 5;
+    uint64 send_time = 6;
+    Cmd cmd = 7;
+    uint64 msg_delete_time = 8;
+    string quote_msg_id = 9;
+    uint64 msg_seq = 10;
+    uint64 edit_time = 12;
+    
+    message Cmd {
+      string name = 2;
+      uint64 type = 4;
+    }
+    
+    message Content {
+      string text = 1;
+      string buttons = 2;
+      string image_url = 3;
+      string file_name = 4;
+      string file_url = 5;
+      string form = 7;
+      string quote_msg_text = 8;
+      string sticker_url = 9;
+      string post_id = 10;
+      string post_title = 11;
+      string post_content = 12;
+      string post_content_type = 13;
+      string expression_id = 15;
+      string quote_image_url = 16;
+      string quote_image_name = 17;
+      uint64 file_size = 18;
+      string video_url = 19;
+      string audio_url = 21;
+      uint64 audio_time = 22;
+      string quote_video_url = 23;
+      uint64 quote_video_time = 24;
+      uint64 sticker_item_id = 25;
+      uint64 sticker_pack_id = 26;
+      string call_text = 29;
+      string call_status_text = 32;
+      uint64 width = 33;
+      uint64 height = 34;
+      string tip = 37;
+    }
+    
+    message Sender {
+      string chat_id = 1;
+      uint64 chat_type = 2;
+      string name = 3;
+      string avatar_url = 4;
+      repeated string tag_old = 6;
+      repeated Tag tag = 7;
+      
+      message Tag {
+        uint64 id = 1;
+        string text = 3;
+        string color = 4;
+      }
+    }
+  }
 }
 
 // 按消息ID列出消息请求
 message ListMessageByMidSeqRequest {
-  uint64 msg_seq = 1;      // 开始消息的seq,不写默认0
-  uint64 chat_type = 2;    // 对象类型,1-用户 2-群聊 3-机器人
-  string chat_id = 3;      // 对象ID
-  uint64 unknown = 4;      // 未知字段
-  uint64 msg_count = 5;    // 请求获取消息数量
-  string msg_id = 6;       // 消息ID
+  uint64 msg_seq = 3;      // 开始消息的seq
+  uint64 chat_type = 4;
+  string chat_id = 5;
+  uint64 unknown = 6;      // 不知道干啥的
+  uint64 msg_count = 7;
+  string msg_id = 8;
 }
 
-// 消息列表响应
-message ListMessageResponse {
+// 按消息ID列出消息响应
+message ListMessageByMidSeqResponse {
   Status status = 1;
-  repeated PushMessage.Message msg = 2;  // 消息列表
-  uint64 total = 3;                      // 获取的消息数量
+  repeated Msg msg = 2;
+  uint64 total = 3;        // 消息数
+  
+  message Msg {
+    string msg_id = 1;
+    Sender sender = 2;
+    string direction = 3;
+    uint64 content_type = 4;
+    Content content = 5;
+    uint64 send_time = 6;
+    Cmd cmd = 7;
+    uint64 msg_delete_time = 8;
+    string quote_msg_id = 9;
+    uint64 msg_seq = 10;
+    uint64 edit_time = 12;
+    
+    message Cmd {
+      string name = 2;
+      uint64 type = 4;
+    }
+    
+    message Content {
+      string text = 1;
+      string buttons = 2;
+      string image_url = 3;
+      string file_name = 4;
+      string file_url = 5;
+      string form = 7;
+      string quote_msg_text = 8;
+      string sticker_url = 9;
+      string post_id = 10;
+      string post_title = 11;
+      string post_content = 12;
+      string post_content_type = 13;
+      string expression_id = 15;
+      string quote_image_url = 16;
+      string quote_image_name = 17;
+      uint64 file_size = 18;
+      string video_url = 19;
+      string audio_url = 21;
+      uint64 audio_time = 22;
+      string quote_video_url = 23;
+      uint64 quote_video_time = 24;
+      uint64 sticker_item_id = 25;
+      uint64 sticker_pack_id = 26;
+      string call_text = 29;
+      string call_status_text = 32;
+      uint64 width = 33;
+      uint64 height = 34;
+      string tip = 37;
+    }
+    
+    message Sender {
+      string chat_id = 1;
+      uint64 chat_type = 2;
+      string name = 3;
+      string avatar_url = 4;
+      repeated string tag_old = 6;
+      repeated Tag tag = 7;
+      
+      message Tag {
+        uint64 id = 1;
+        string text = 3;
+        string color = 4;
+      }
+    }
+  }
 }
 
 // ==================== 已读消息相关 ====================
@@ -226,16 +487,9 @@ message GetChatListRequest {
 
 // 撤回消息请求
 message RecallMessageRequest {
-  string msg_id = 1;       // 信息ID
-  string chat_id = 2;      // 信息所属对象ID
-  uint64 chat_type = 3;    // 信息所属对象类型, 1-用户 2-群聊 3-机器人
-}
-
-// 批量撤回消息请求
-message BatchRecallMessageRequest {
-  repeated string msg_id = 1;  // 信息ID列表
-  string chat_id = 2;          // 信息所属对象ID
-  uint64 chat_type = 3;        // 信息所属对象类型, 1-用户 2-群聊 3-机器人
+  string msg_id = 2;       // 信息ID
+  string chat_id = 3;      // 信息所属对象ID
+  uint64 chat_type = 4;    // 信息所属对象类型, 1-用户 2-群聊 3-机器人
 }
 
 // 撤回消息响应
@@ -243,15 +497,27 @@ message RecallMessageResponse {
   Status status = 1;
 }
 
+// 批量撤回消息请求
+message BatchRecallMessageRequest {
+  repeated string msg_id = 2;  // 信息ID
+  string chat_id = 3;          // 信息所属对象ID
+  uint64 chat_type = 4;        // 信息所属对象类型, 1-用户 2-群聊 3-机器人
+}
+
+// 批量撤回消息响应
+message BatchRecallMessageResponse {
+  Status status = 1;
+}
+
 // ==================== 按钮事件相关 ====================
 
 // 按钮点击事件请求
 message ButtonReportRequest {
-  string msg_id = 1;         // 信息ID
-  uint64 chat_type = 2;      // 对象类型, 1-用户 2-群聊 3-机器人
-  string chat_id = 3;        // 对象ID
-  string user_id = 4;        // 按钮事件发送者ID
-  string button_value = 5;   // 欲点击按钮的值
+  string msg_id = 2;         // 信息ID
+  uint64 chat_type = 3;      // 对象类型, 1-用户 2-群聊 3-机器人
+  string chat_id = 4;        // 对象ID
+  string user_id = 5;        // 按钮事件发送者ID
+  string button_value = 6;   // 欲点击按钮的值
 }
 
 // 按钮事件响应
@@ -263,19 +529,25 @@ message ButtonReportResponse {
 
 // 流式消息
 message StreamMessage {
-  StreamMsg msg = 1;
+  INFO info = 1;
+  Data data = 2;
   
-  message StreamMsg {
-    string msgId = 1;
-    string recvId = 2;
-    string chatId = 3;
-    string content = 4;
+  message Data {
+    string any = 1;
+    StreamMsg msg = 2;
+    
+    message StreamMsg {
+      string msg_id = 1;
+      string recv_id = 2;
+      string chat_id = 3;      // 似乎是会话ID
+      string content = 4;      // 消息内容
+    }
   }
 }
 
 // ==================== 笔记同步相关 ====================
 
-// 输入信息同步
+// 输入信息同步(发送)
 message InputInfo {
   string seq = 1;
   string cmd = 2;
@@ -290,12 +562,82 @@ message InputInfo {
 
 // 草稿同步(接收)
 message DraftInput {
-  string seq = 1;
-  string cmd = 2;
-  DraftData data = 3;
+  INFO info = 1;
+  Data data = 2;
   
-  message DraftData {
-    string chat_id = 1;
-    string input = 2;
+  message Data {
+    string any = 1;
+    Draft draft = 2;
+    
+    message Draft {
+      string chat_id = 1;      // 对象ID
+      string input = 2;        // 草稿内容
+    }
   }
+}
+
+// ==================== 超级文件分享相关 ====================
+
+// 超级文件分享推送
+message FileSendMessage {
+  INFO info = 1;
+  Data data = 2;
+  
+  message Data {
+    string any = 1;
+    Sender sender = 2;
+    
+    message Sender {
+      string send_user_id = 1;      // 分享者用户ID
+      string user_id = 2;           // 接收者用户ID
+      uint64 temp_code = 3;         // 未知
+      string send_type = 4;         // 分享类别区分文本
+      string data = 5;              // 经过转义后的json格式发送数据
+      string send_deviceId = 6;     // 发送者设备唯一标识符
+    }
+  }
+}
+
+// ==================== 邀请消息相关 ====================
+
+// 邀请申请推送
+message InviteApply {
+  INFO info = 1;
+}
+
+// ==================== 编辑消息推送相关 ====================
+
+// 编辑消息推送
+message EditMessagePush {
+  INFO info = 1;
+  Data data = 2;
+  
+  message Data {
+    string any = 1;
+    Msg msg = 2;
+  }
+  
+  message Msg {
+    string msg_id = 1;
+    string recv_id = 3;
+    string chat_id = 4;
+    Content content = 6;
+    uint64 content_type = 7;
+    string quote_msg_id = 11;
+    uint64 edit_time = 14;         // 编辑时间
+    
+    message Content {
+      string text = 1;
+      string buttons = 2;
+      string quote_msg_text = 8;
+    }
+  }
+}
+
+// ==================== 通用INFO结构 ====================
+
+// 通用INFO结构(用于WebSocket)
+message INFO {
+  string seq = 1;    // 请求标识码
+  string cmd = 2;    // 操作类型
 }

@@ -197,16 +197,21 @@ class MessageHandler:
                 logger.warning(f"好友 {sender_id} 未设置加密住址")
                 return
             
-            # 解密住址信息
-            address = self.crypto.decrypt(friend['encrypted_address'])
+            # 直接使用用户存储的OpenPGP密文(不再解密)
+            encrypted_address = friend['encrypted_address']
             
             # 检查是否有局部电子终别标记
             farewell_msg = ""
             if friend['local_final_farewell']:
-                farewell_msg = "\n\n⚠️【电子终别】特别提醒：请在信封上写明你的名址，以免失去最后的联系。"
+                # 使用自定义终别消息，如果没有则使用默认消息
+                custom_message = friend.get('farewell_message')
+                if custom_message:
+                    farewell_msg = f"\n\n⚠️【电子终别】{custom_message}"
+                else:
+                    farewell_msg = "\n\n⚠️【电子终别】特别提醒：请在信封上写明你的实际名址，以免失去最后的联系。"
             
-            # 发送住址信息
-            response_text = f"【自动回复】住址信息：\n{address}{farewell_msg}"
+            # 发送加密住址信息
+            response_text = f"【自动回复】加密住址信息（请使用您的OpenPGP私钥解密）：\n\n{encrypted_address}{farewell_msg}"
             
             success = self.ws_client.send_text_message(chat_id, 1, response_text)
             

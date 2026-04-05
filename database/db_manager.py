@@ -3,6 +3,7 @@
 提供所有数据库操作的封装
 """
 
+import os
 import sqlite3
 import json
 import logging
@@ -10,30 +11,22 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 
-from config import Config
-from database.models import CREATE_TABLES_SQL
-
-logger = logging.getLogger(__name__)
-
+from config import DATABASE_PATH, validate_config
 
 class DatabaseManager:
-    """数据库管理器单例"""
+    """数据库管理器"""
     
-    _instance = None
-    _db_path = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._db_path = Config.DATABASE_PATH
-            # 初始化查询缓存
-            cls._query_cache = {}
-            cls._cache_ttl = 60  # 缓存有效期(秒)
-        return cls._instance
+    _db_path = DATABASE_PATH
+    _initialized = False
     
     @contextmanager
     def get_connection(self):
         """获取数据库连接的上下文管理器"""
+        # 确保数据库目录存在
+        db_dir = os.path.dirname(self._db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row  # 使结果可以通过列名访问
         # 启用WAL模式以提高并发性能
@@ -174,17 +167,26 @@ class DatabaseManager:
             return result
     
     def update_takeover_settings(self, user_id: int, enabled: bool, 
-                                 start_time: str, end_time: str):
-        """更新自动接管设置"""
+                                 start_time: str, end_time: str, weekdays: str = '1,2,3,4,5,6,7'):
+        """更新自动接管设置
+        
+        Args:
+            user_id: 用户ID
+            enabled: 是否启用
+            start_time: 开始时间 (HH:MM)
+            end_time: 结束时间 (HH:MM)
+            weekdays: 启用的星期(逗号分隔,1=周一,7=周日),默认全部
+        """
         with self.get_connection() as conn:
             conn.execute(
                 """UPDATE settings 
                    SET auto_takeover_enabled = ?, 
                        takeover_start_time = ?, 
                        takeover_end_time = ?,
+                       takeover_weekdays = ?,
                        updated_at = CURRENT_TIMESTAMP
                    WHERE user_id = ?""",
-                (enabled, start_time, end_time, user_id)
+                (enabled, start_time, end_time, weekdays, user_id)
             )
         # 清除缓存
         self._clear_cache(f"settings_{user_id}")
@@ -231,6 +233,61 @@ class DatabaseManager:
             )
         # 清除缓存
         self._clear_cache(f"settings_{user_id}")
+    
+    def is_in_takeover_time(self, user_id: int) -> bool:
+        """
+        检查当前时间是否在自动托管时间内
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            是否在托管时间内
+        """
+        from datetime import datetime
+        
+        settings = self.get_user_settings(user_id)
+        if not settings or not settings['auto_takeover_enabled']:
+            return False
+        
+        # 检查星期
+        weekdays_str = settings.get('takeover_weekdays', '1,2,3,4,5,6,7')
+        try:
+            weekdays = [int(d.strip()) for d in weekdays_str.split(',')]
+        except:
+            weekdays = list(range(1, 8))  # 默认全部
+        
+        # Python的weekday(): 0=周一, 6=周日
+        # 我们的格式: 1=周一, 7=周日
+        current_weekday = datetime.now().isoweekday()  # 1-7
+        
+        if current_weekday not in weekdays:
+            logger.debug(f"今天(周{current_weekday})不在托管范围内")
+            return False
+        
+        # 检查时间(格式: YYYY/MM/DD HH:MM:SS)
+        start_time_str = settings['takeover_start_time']
+        end_time_str = settings['takeover_end_time']
+        
+        now = datetime.now()
+        
+        try:
+            # 解析开始和结束时间
+            start_time = datetime.strptime(start_time_str, '%Y/%m/%d %H:%M:%S')
+            end_time = datetime.strptime(end_time_str, '%Y/%m/%d %H:%M:%S')
+            
+            # 如果结束时间小于开始时间,说明跨天,需要调整
+            if end_time < start_time:
+                # 将结束时间加一天
+                from datetime import timedelta
+                end_time = end_time + timedelta(days=1)
+            
+            # 检查当前时间是否在范围内
+            return start_time <= now <= end_time
+            
+        except ValueError as e:
+            logger.error(f"时间格式错误: {e}, start={start_time_str}, end={end_time_str}")
+            return False
     
     def _clear_cache(self, key: str = None):
         """
@@ -314,14 +371,24 @@ class DatabaseManager:
     # ==================== 好友管理 ====================
     
     def add_friend(self, user_id: int, friend_chat_id: str, friend_name: str,
-                   encrypted_address: str = None, local_final_farewell: bool = False):
-        """添加信任好友"""
+                   encrypted_address: str = None, local_final_farewell: bool = False,
+                   farewell_message: str = None):
+        """添加信任好友
+        
+        Args:
+            user_id: 用户ID
+            friend_chat_id: 好友云湖ID
+            friend_name: 备注名
+            encrypted_address: OpenPGP加密后的住址密文
+            local_final_farewell: 是否启用局部电子终别标记
+            farewell_message: 自定义终别消息(可选)
+        """
         with self.get_connection() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO friends 
-                   (user_id, friend_chat_id, friend_name, encrypted_address, local_final_farewell)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (user_id, friend_chat_id, friend_name, encrypted_address, local_final_farewell)
+                   (user_id, friend_chat_id, friend_name, encrypted_address, local_final_farewell, farewell_message)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (user_id, friend_chat_id, friend_name, encrypted_address, local_final_farewell, farewell_message)
             )
     
     def remove_friend(self, user_id: int, friend_chat_id: str):
@@ -354,6 +421,20 @@ class DatabaseManager:
             conn.execute(
                 "UPDATE friends SET encrypted_address = ? WHERE user_id = ? AND friend_chat_id = ?",
                 (encrypted_address, user_id, friend_chat_id)
+            )
+    
+    def update_farewell_message(self, user_id: int, friend_chat_id: str, farewell_message: str):
+        """更新好友的自定义终别消息
+        
+        Args:
+            user_id: 用户ID
+            friend_chat_id: 好友云湖ID
+            farewell_message: 自定义终别消息(None表示使用默认消息)
+        """
+        with self.get_connection() as conn:
+            conn.execute(
+                "UPDATE friends SET farewell_message = ? WHERE user_id = ? AND friend_chat_id = ?",
+                (farewell_message, user_id, friend_chat_id)
             )
     
     def toggle_local_final_farewell(self, user_id: int, friend_chat_id: str):

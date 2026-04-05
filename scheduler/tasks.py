@@ -10,7 +10,12 @@ import datetime
 import logging
 from typing import Optional
 
-from config import Config
+from config import (
+    CHECKIN_BOT_ID,
+    CHECKIN_GROUP_ID,
+    CHECKIN_DELAY_MIN,
+    CHECKIN_DELAY_MAX
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +60,19 @@ class TaskScheduler:
     def daily_checkin(self):
         """每日签到任务"""
         try:
-            # 随机延迟 0-300 秒(0-5 分钟)
-            delay = random.randint(Config.CHECKIN_DELAY_MIN, Config.CHECKIN_DELAY_MAX)
-            logger.info(f"签到任务将在 {delay} 秒后执行")
-            
-            import time
-            time.sleep(delay)
-            
+            # 检查是否在托管时间内
+            if not self.db.is_in_takeover_time(1):  # 默认用户ID=1
+                logger.info("当前不在自动托管时间内,跳过签到")
+                return
+                
             logger.info("开始执行签到任务...")
-            
+                
             success_count = 0
             total_tasks = 3
-            
+                
             # 1. HXBOT 普通签到 (发送 /签到 到机器人 ID: 45059971)
             if self.ws_client.send_text_message(
-                chat_id=Config.CHECKIN_BOT_ID,
+                bot_id=CHECKIN_BOT_ID,
                 chat_type=3,  # 机器人
                 text="/签到"
             ):
@@ -77,14 +80,14 @@ class TaskScheduler:
                 success_count += 1
             else:
                 logger.error("✗ HXBOT 普通签到失败")
-            
+                
             # 短暂延迟,避免发送过快
             import time
             time.sleep(2)
-            
+                
             # 2. 鹿管签到 (发送 /鹿)
             if self.ws_client.send_text_message(
-                chat_id=Config.CHECKIN_BOT_ID,
+                bot_id=CHECKIN_BOT_ID,
                 chat_type=3,
                 text="/鹿"
             ):
@@ -92,15 +95,15 @@ class TaskScheduler:
                 success_count += 1
             else:
                 logger.error("✗ 鹿管签到失败")
-            
+                
             time.sleep(2)
-            
-            # 3. 有一城群聊签到 (群聊 ID: 679137839, 发送"签到"/"打卡"/"冒泡"之一)
+                
+            # 3. 有一城群聊签到 (群聊 ID: 679137839, 发送“签到”/“打卡”/“冒泡”之一)
             checkin_words = ["签到", "打卡", "冒泡"]
             word = random.choice(checkin_words)
-            
+                
             if self.ws_client.send_text_message(
-                chat_id=Config.CHECKIN_GROUP_ID,
+                group_id=CHECKIN_GROUP_ID,
                 chat_type=2,  # 群聊
                 text=word
             ):
@@ -108,7 +111,7 @@ class TaskScheduler:
                 success_count += 1
             else:
                 logger.error("✗ 有一城群聊签到失败")
-            
+                
             # 记录签到结果
             all_success = (success_count == total_tasks)
             self.db.record_checkin(
@@ -116,7 +119,7 @@ class TaskScheduler:
                 success=all_success,
                 error_message=None if all_success else f"成功 {success_count}/{total_tasks}"
             )
-            
+                
             self._last_checkin_time = datetime.datetime.now()
             
             if all_success:

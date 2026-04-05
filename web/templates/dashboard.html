@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - 云湖保活机器人{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 用户信息卡片 -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-person-circle"></i> 用户信息</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>邮箱:</strong> {{ user.email }}</p>
+                <p><strong>用户名:</strong> {{ user.username or '未设置' }}</p>
+                <p><strong>注册时间:</strong> {{ user.created_at }}</p>
+                <hr>
+                <a href="/settings" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-gear"></i> 管理设置
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 运行状态卡片 -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-activity"></i> 运行状态</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="fw-bold">WebSocket 连接:</label>
+                            <span id="ws-status" class="badge bg-secondary">检查中...</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="fw-bold">定时任务:</label>
+                            <span id="scheduler-status" class="badge bg-secondary">检查中...</span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="fw-bold">ProtoBuf 支持:</label>
+                            <span id="proto-status" class="badge bg-secondary">检查中...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="fw-bold">最后签到:</label>
+                            <p class="text-muted">{{ last_checkin.checkin_time if last_checkin else '暂无记录' }}</p>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="fw-bold">自动托管:</label>
+                            {% if settings and settings.auto_takeover_enabled %}
+                            <span class="badge bg-success">已启用</span>
+                            {% else %}
+                            <span class="badge bg-danger">未启用</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button class="btn btn-info btn-sm" onclick="refreshStatus()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新状态
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 快捷操作卡片 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> 快捷操作</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-primary w-100" onclick="window.location.href='/settings'">
+                            <i class="bi bi-gear"></i><br>系统设置
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-success w-100" onclick="alert('功能开发中')">
+                            <i class="bi bi-file-earmark-text"></i><br>查看日志
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-info w-100" onclick="alert('功能开发中')">
+                            <i class="bi bi-graph-up"></i><br>统计信息
+                        </button>
+                    </div>
+                    <div class="col-md-3 mb-2">
+                        <button class="btn btn-danger w-100" onclick="if(confirm('确定要退出吗?')) window.location.href='/logout'">
+                            <i class="bi bi-box-arrow-right"></i><br>退出登录
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 提示信息 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="alert alert-info" role="alert">
+            <h5 class="alert-heading"><i class="bi bi-info-circle"></i> 使用提示</h5>
+            <ul class="mb-0">
+                <li>系统会在每天凌晨零点自动执行签到任务(在设定的托管时间内)</li>
+                <li>可以按星期配置自动托管的日期范围</li>
+                <li>为信任的好友设置 OpenPGP 加密住址,通过"住址"关键词触发回复</li>
+                <li>启用电子终别标记,提醒好友保持联系</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 刷新状态
+function refreshStatus() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            // 更新 WebSocket 状态
+            const wsStatus = document.getElementById('ws-status');
+            if (data.websocket_connected) {
+                wsStatus.textContent = '已连接';
+                wsStatus.className = 'badge bg-success';
+            } else {
+                wsStatus.textContent = '未连接';
+                wsStatus.className = 'badge bg-danger';
+            }
+            
+            // 更新定时任务状态
+            const schedulerStatus = document.getElementById('scheduler-status');
+            if (data.scheduler_running) {
+                schedulerStatus.textContent = '运行中';
+                schedulerStatus.className = 'badge bg-success';
+            } else {
+                schedulerStatus.textContent = '已停止';
+                schedulerStatus.className = 'badge bg-danger';
+            }
+            
+            // 更新 ProtoBuf 状态
+            const protoStatus = document.getElementById('proto-status');
+            if (data.proto) {
+                const mode = data.proto.fallback_mode || 'Unknown';
+                const errors = data.proto.proto_errors_count || 0;
+                
+                if (mode === 'ProtoBuf') {
+                    protoStatus.textContent = 'ProtoBuf (正常)';
+                    protoStatus.className = 'badge bg-success';
+                } else if (errors > 0) {
+                    protoStatus.textContent = `JSON (${errors}个降级)`;
+                    protoStatus.className = 'badge bg-warning';
+                } else {
+                    protoStatus.textContent = 'JSON (降级模式)';
+                    protoStatus.className = 'badge bg-danger';
+                }
+            } else {
+                protoStatus.textContent = '未知';
+                protoStatus.className = 'badge bg-secondary';
+            }
+        })
+        .catch(error => {
+            console.error('获取状态失败:', error);
+        });
+}
+
+// 页面加载时自动刷新状态
+document.addEventListener('DOMContentLoaded', function() {
+    refreshStatus();
+    
+    // 每30秒自动刷新一次
+    setInterval(refreshStatus, 30000);
+});
+</script>
+{% endblock %}

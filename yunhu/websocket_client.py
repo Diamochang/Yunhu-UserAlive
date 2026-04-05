@@ -306,7 +306,11 @@ class YunhuWebSocketClient:
         stats = self.stats.copy()
         if stats["last_connect_time"]:
             stats["uptime_seconds"] = time.time() - stats["last_connect_time"]
+        
+        # 添加 ProtoBuf 状态
+        from proto.serializer import serializer
         stats["proto_support"] = serializer.is_proto_available
+        stats["proto_status"] = serializer.get_status_report()
         stats["platform"] = self.platform
         return stats
     

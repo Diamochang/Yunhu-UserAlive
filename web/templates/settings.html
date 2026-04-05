@@ -1,0 +1,484 @@
+{% extends "base.html" %}
+
+{% block title %}设置 - 云湖保活机器人{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4"><i class="bi bi-gear"></i> 系统设置</h2>
+    </div>
+</div>
+
+<!-- 自动托管设置 -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> 自动托管设置</h5>
+            </div>
+            <div class="card-body">
+                <form id="takeover-form">
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="auto-takeover" 
+                               {% if settings and settings.auto_takeover_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="auto-takeover">
+                            启用自动托管
+                        </label>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">开始时间 (YYYY/MM/DD HH:MM:SS):</label>
+                        <input type="text" class="form-control" id="takeover-start" 
+                               placeholder="2024/01/01 00:00:00"
+                               value="{{ settings.takeover_start_time if settings and settings.takeover_start_time else '2024/01/01 00:00:00' }}">
+                        <small class="text-muted">格式: YYYY/MM/DD HH:MM:SS</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">结束时间 (YYYY/MM/DD HH:MM:SS):</label>
+                        <input type="text" class="form-control" id="takeover-end" 
+                               placeholder="2024/01/01 06:00:00"
+                               value="{{ settings.takeover_end_time if settings and settings.takeover_end_time else '2024/01/01 06:00:00' }}">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">托管日期 (按星期):</label>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="1" id="weekday-1" checked>
+                            <label class="form-check-label" for="weekday-1">周一</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="2" id="weekday-2" checked>
+                            <label class="form-check-label" for="weekday-2">周二</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="3" id="weekday-3" checked>
+                            <label class="form-check-label" for="weekday-3">周三</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="4" id="weekday-4" checked>
+                            <label class="form-check-label" for="weekday-4">周四</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="5" id="weekday-5" checked>
+                            <label class="form-check-label" for="weekday-5">周五</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="6" id="weekday-6">
+                            <label class="form-check-label" for="weekday-6">周六</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input weekday-checkbox" type="checkbox" value="7" id="weekday-7">
+                            <label class="form-check-label" for="weekday-7">周日</label>
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary w-100" onclick="saveTakeoverSettings()">
+                        <i class="bi bi-save"></i> 保存托管设置
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 电子终别设置 -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="bi bi-envelope-heart"></i> 电子终别设置</h5>
+            </div>
+            <div class="card-body">
+                <form id="farewell-form">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">延迟发送时间 (小时):</label>
+                        <input type="number" class="form-control" id="farewell-delay" 
+                               min="0" max="720" step="1"
+                               value="{{ settings.auto_final_farewell_delay // 3600 if settings else 0 }}">
+                        <small class="text-muted">设置为0表示立即发送,最大720小时(30天)</small>
+                    </div>
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="global-farewell"
+                               {% if settings and settings.global_final_farewell %}checked{% endif %}>
+                        <label class="form-check-label" for="global-farewell">
+                            启用全局电子终别标记
+                        </label>
+                        <small class="d-block text-muted mt-1">对所有好友生效</small>
+                    </div>
+                    
+                    <button type="button" class="btn btn-warning w-100" onclick="saveFarewellSettings()">
+                        <i class="bi bi-save"></i> 保存终别设置
+                    </button>
+                </form>
+                
+                <hr>
+                
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-info-circle"></i> 说明</h6>
+                    <p class="mb-0 small">
+                        电子终别功能会在您长时间不活跃时,自动向好友发送告别消息。
+                        可以为特定好友设置局部标记,或启用全局标记。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 文章链接管理 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-link-45deg"></i> 文章链接管理</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/settings" class="mb-4">
+                    <input type="hidden" name="action" value="add_article">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" name="article_title" 
+                                   placeholder="文章标题" required>
+                        </div>
+                        <div class="col-md-5">
+                            <input type="url" class="form-control" name="article_url" 
+                                   placeholder="文章URL" required>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-plus-circle"></i> 添加文章
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                {% if article_links %}
+                <h6>已添加的文章:</h6>
+                <div class="list-group">
+                    {% for link in article_links %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ link.title }}</strong>
+                            <br>
+                            <small class="text-muted">{{ link.url }}</small>
+                        </div>
+                        <a href="/settings?action=delete_article&link_id={{ link.id }}" 
+                           class="btn btn-danger btn-sm"
+                           onclick="return confirm('确定要删除这篇文章吗?')">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">暂无文章链接</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 好友管理 -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> 好友管理</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/settings" class="mb-4">
+                    <input type="hidden" name="action" value="add_friend">
+                    <div class="row g-3">
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" name="friend_chat_id" 
+                                   placeholder="Chat ID" required>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="text" class="form-control" name="friend_name" 
+                                   placeholder="好友名称">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" name="address" 
+                                   placeholder="OpenPGP加密后的住址密文" required>
+                            <small class="text-muted">请先使用您的公钥加密</small>
+                        </div>
+                        <div class="col-md-3">
+                            <textarea class="form-control" name="farewell_message" rows="2"
+                                      placeholder="自定义终别消息(可选，留空使用默认消息)"></textarea>
+                            <small class="text-muted">启用局部终别时显示</small>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" 
+                                       name="local_final_farewell" id="local-farewell">
+                                <label class="form-check-label" for="local-farewell">
+                                    局部终别
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-info w-100">
+                                <i class="bi bi-plus-circle"></i> 添加好友
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+                {% if friends %}
+                <h6>已添加的好友:</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Chat ID</th>
+                                <th>名称</th>
+                                <th>加密住址</th>
+                                <th>局部终别</th>
+                                <th>自定义消息</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for friend in friends %}
+                            <tr>
+                                <td>{{ friend.friend_chat_id }}</td>
+                                <td>{{ friend.friend_name or '未命名' }}</td>
+                                <td>
+                                    <code class="small">{{ friend.encrypted_address[:30] }}...</code>
+                                </td>
+                                <td>
+                                    {% if friend.local_final_farewell %}
+                                    <span class="badge bg-warning">是</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">否</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if friend.farewell_message %}
+                                    <button class="btn btn-sm btn-outline-info farewell-edit-btn" 
+                                            data-friend-id="{{ friend.friend_chat_id }}"
+                                            data-message='{{ friend.farewell_message|replace("'", "&#39;") }}'>
+                                        <i class="bi bi-pencil"></i> 编辑
+                                    </button>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary farewell-edit-btn" 
+                                            data-friend-id="{{ friend.friend_chat_id }}"
+                                            data-message=''>
+                                        <i class="bi bi-plus"></i> 添加
+                                    </button>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/settings?action=delete_friend&friend_id={{ friend.id }}" 
+                                       class="btn btn-danger btn-sm"
+                                       onclick="return confirm('确定要删除这个好友吗?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">暂无好友记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑终别消息模态框 -->
+<div class="modal fade" id="farewellModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="bi bi-chat-quote"></i> 编辑自定义电子终别消息</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="farewell-form">
+                    <input type="hidden" id="farewell-friend-id">
+                    <div class="mb-3">
+                        <label for="farewell-text" class="form-label fw-bold">终别消息内容:</label>
+                        <textarea class="form-control" id="farewell-text" rows="4" 
+                                  placeholder="输入自定义终别消息，留空则使用默认消息"></textarea>
+                        <small class="text-muted">
+                            提示: 当好友查询住址且启用局部终别时显示此消息。一般的，它可以是提醒好友在信封上写明 TA 的名址，以免失去最后的联系。<br>
+                            留空将使用默认消息。
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="clearFarewellMessage()">
+                    <i class="bi bi-trash"></i> 清空
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveFarewellMessage()">
+                    <i class="bi bi-save"></i> 保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 加载星期设置
+document.addEventListener('DOMContentLoaded', function() {
+    const weekdaysStr = "{{ settings.takeover_weekdays if settings and settings.takeover_weekdays else '1,2,3,4,5,6,7' }}";
+    const weekdays = weekdaysStr.split(',').map(d => parseInt(d.trim()));
+    
+    // 更新复选框状态
+    document.querySelectorAll('.weekday-checkbox').forEach(checkbox => {
+        const day = parseInt(checkbox.value);
+        checkbox.checked = weekdays.includes(day);
+    });
+});
+
+// 保存托管设置
+function saveTakeoverSettings() {
+    const enabled = document.getElementById('auto-takeover').checked;
+    const startTime = document.getElementById('takeover-start').value.trim();
+    const endTime = document.getElementById('takeover-end').value.trim();
+    
+    // 验证时间格式 (YYYY/MM/DD HH:MM:SS)
+    const timeRegex = /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}$/;
+    if (!timeRegex.test(startTime)) {
+        alert('开始时间格式错误，请使用 YYYY/MM/DD HH:MM:SS 格式');
+        return;
+    }
+    if (!timeRegex.test(endTime)) {
+        alert('结束时间格式错误，请使用 YYYY/MM/DD HH:MM:SS 格式');
+        return;
+    }
+    
+    // 获取选中的星期
+    const selectedWeekdays = [];
+    document.querySelectorAll('.weekday-checkbox:checked').forEach(cb => {
+        selectedWeekdays.push(parseInt(cb.value));
+    });
+    
+    if (selectedWeekdays.length === 0) {
+        alert('请至少选择一个星期');
+        return;
+    }
+    
+    const weekdaysStr = selectedWeekdays.sort().join(',');
+    
+    fetch('/api/settings/takeover', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            enabled: enabled,
+            start_time: startTime,
+            end_time: endTime,
+            weekdays: weekdaysStr
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('托管设置保存成功!');
+        } else {
+            alert('保存失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('保存失败,请检查网络连接');
+    });
+}
+
+// 保存终别设置
+function saveFarewellSettings() {
+    const delayHours = parseInt(document.getElementById('farewell-delay').value) || 0;
+    const globalEnabled = document.getElementById('global-farewell').checked;
+    
+    fetch('/api/settings/farewell', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            delay_hours: delayHours,
+            global_enabled: globalEnabled
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('终别设置保存成功!');
+        } else {
+            alert('保存失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('保存失败,请检查网络连接');
+    });
+}
+
+// 编辑终别消息
+let farewellModal;
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化 Bootstrap Modal
+    farewellModal = new bootstrap.Modal(document.getElementById('farewellModal'));
+    
+    // 为所有编辑按钮添加点击事件
+    document.querySelectorAll('.farewell-edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const friendId = this.getAttribute('data-friend-id');
+            const message = this.getAttribute('data-message') || '';
+            editFarewellMessage(friendId, message);
+        });
+    });
+});
+
+function editFarewellMessage(friendChatId, currentMessage) {
+    document.getElementById('farewell-friend-id').value = friendChatId;
+    document.getElementById('farewell-text').value = currentMessage || '';
+    farewellModal.show();
+}
+
+function saveFarewellMessage() {
+    const friendChatId = document.getElementById('farewell-friend-id').value;
+    const message = document.getElementById('farewell-text').value.trim();
+    
+    if (!friendChatId) {
+        alert('错误: 缺少好友ID');
+        return;
+    }
+    
+    fetch('/api/friend/farewell_message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            friend_chat_id: friendChatId,
+            farewell_message: message || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('终别消息已更新!');
+            farewellModal.hide();
+            location.reload();
+        } else {
+            alert('保存失败: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('保存失败,请检查网络连接');
+    });
+}
+
+function clearFarewellMessage() {
+    if (confirm('确定要清空自定义终别消息吗?\n\n清空后将使用默认消息。')) {
+        document.getElementById('farewell-text').value = '';
+        saveFarewellMessage();
+    }
+}
+</script>
+{% endblock %}

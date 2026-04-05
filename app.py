@@ -7,10 +7,8 @@ import sys
 import logging
 import threading
 from logging.handlers import RotatingFileHandler
-from dotenv import load_dotenv
 
-# 加载环境变量
-load_dotenv()
+from config import Config
 
 # 配置日志
 def setup_logging():
@@ -18,19 +16,25 @@ def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     
-    # 确保 logs 目录存在
-    os.makedirs('logs', exist_ok=True)
+    # 确保日志目录存在
+    log_file = Config.LOG_FILE
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
     
     # 文件处理器
-    file_handler = RotatingFileHandler(
-        'logs/app.log',
-        maxBytes=10*1024*1024,  # 10MB
-        backupCount=5
-    )
-    file_handler.setFormatter(logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    ))
-    logger.addHandler(file_handler)
+    try:
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=Config.LOG_MAX_BYTES,
+            backupCount=Config.LOG_BACKUP_COUNT
+        )
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"警告: 无法创建文件日志处理器: {e}")
     
     # 控制台处理器
     console_handler = logging.StreamHandler()
@@ -50,12 +54,12 @@ def main():
     
     # 验证配置
     try:
-        from config import Config
-        Config.validate()
+        from config import validate_config
+        validate_config()
         logger.info("配置验证通过")
     except ValueError as e:
         logger.error(f"配置错误: {str(e)}")
-        logger.error("请复制 .env.example 为 .env 并填写正确的配置")
+        logger.error("请编辑 config.py 文件，修正配置问题")
         sys.exit(1)
     
     # 初始化数据库

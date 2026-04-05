@@ -22,8 +22,9 @@ CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     auto_takeover_enabled BOOLEAN DEFAULT 0,
-    takeover_start_time TIME DEFAULT '00:00',
-    takeover_end_time TIME DEFAULT '06:00',
+    takeover_start_time TEXT DEFAULT '2024/01/01 00:00:00',  -- 格式: YYYY/MM/DD HH:MM:SS
+    takeover_end_time TEXT DEFAULT '2024/01/01 06:00:00',    -- 格式: YYYY/MM/DD HH:MM:SS
+    takeover_weekdays TEXT DEFAULT '1,2,3,4,5,6,7',  -- 1=周一, 7=周日
     last_console_access TIMESTAMP,
     auto_final_farewell_delay INTEGER DEFAULT 0,
     global_final_farewell BOOLEAN DEFAULT 0,
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS friends (
     friend_name TEXT,
     encrypted_address TEXT,
     local_final_farewell BOOLEAN DEFAULT 0,
+    farewell_message TEXT,  -- 自定义终别消息
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE(user_id, friend_chat_id)

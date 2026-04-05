@@ -28,9 +28,11 @@ ENV/
 # 环境变量和配置
 .env
 *.local
+config.py
 
 # 数据库
-*.db
+data/*.db
+*.db-journal
 *.sqlite
 *.sqlite3
 

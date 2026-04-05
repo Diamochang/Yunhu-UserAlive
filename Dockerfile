@@ -1,5 +1,5 @@
 # 使用多阶段构建优化镜像大小
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 WORKDIR /app
 

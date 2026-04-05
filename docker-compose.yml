@@ -26,8 +26,8 @@ services:
     networks:
       - yunhu-network
     labels:
-      - "com.yunhu.useralive.description=云湖保活用户机器人"
-      - "com.yunhu.useralive.version=1.0.0"
+      - "top.diamochang.yunhu-useralive.description=一个功能更加完善的云湖保活软件，专为因客观因素不能连续活跃的云湖原住民设计。 "
+      - "top.diamochang.yunhu-useralive.version=0.7.0"
 
 networks:
   yunhu-network:
