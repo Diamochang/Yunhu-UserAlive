@@ -20,7 +20,7 @@
 - **加密**: cryptography (Fernet + PBKDF2), OpenPGP (GnuPG)
 - **2FA**: pyotp (TOTP)
 - **定时任务**: APScheduler
-- **消息序列化**: Protocol Buffers (可选,支持 JSON 降级)
+- **消息序列化**: Protocol Buffers (支持 JSON 降级)
 
 ## 项目结构
 
@@ -67,11 +67,6 @@ pip install -r requirements.txt
 
 #### 2. 配置系统
 
-```bash
-# 复制配置示例文件
-cp config_local.py.example config.py
-```
-
 编辑 `config.py`，设置必需的配置：
 
 ```python
@@ -107,7 +102,7 @@ bash compile.sh
 cd ..
 ```
 
-**注意**: 如果不编译 ProtoBuf,程序会自动使用 JSON 格式,功能完全相同。
+**注意**: 如果不编译 ProtoBuf，程序会自动使用 JSON 格式，功能完全相同。
 
 详见 [ProtoBuf 使用指南](docs/ProtoBuf_使用指南.md)
 

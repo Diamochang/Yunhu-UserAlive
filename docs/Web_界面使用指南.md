@@ -2,7 +2,7 @@
 
 ## 概述
 
-Yunhu-UserAlive v1.2.0 采用 Bootstrap 5 重构了 Web 控制台,提供现代化、响应式的用户界面。
+Yunhu-UserAlive 采用 Bootstrap 5 编写 Web 控制台，提供现代化、响应式的用户界面。
 
 ## 访问方式
 
@@ -164,7 +164,7 @@ Yunhu-UserAlive v1.2.0 采用 Bootstrap 5 重构了 Web 控制台,提供现代�
 ## 常见问题
 
 ### Q1: 为什么页面样式加载不出来?
-**A**: 确保网络连接正常,Bootstrap 使用 CDN 加载资源。如需离线使用,可以下载 Bootstrap 文件到本地。
+**A**: 确保网络连接正常，Bootstrap 使用 JsDelivr CDN 加载资源。如需离线使用，可以下载 Bootstrap 文件到本地并更改相关资源路径。
 
 ### Q2: 状态信息不更新怎么办?
 **A**: 
@@ -179,7 +179,7 @@ Yunhu-UserAlive v1.2.0 采用 Bootstrap 5 重构了 Web 控制台,提供现代�
 - 确保浏览器支持现代 CSS
 
 ### Q4: 如何自定义主题颜色?
-**A**: 修改 `web/templates/base.html` 中的 `<style>` 标签,或创建自定义 CSS 文件。
+**A**: 修改 `web/templates/base.html` 中的 `<style>` 标签，或创建自定义 CSS 文件。
 
 ### Q5: 模板文件在哪里?
 **A**: 所有模板位于 `web/templates/` 目录:
@@ -246,8 +246,3 @@ Yunhu-UserAlive v1.2.0 采用 Bootstrap 5 重构了 Web 控制台,提供现代�
 - [更新日志](../CHANGELOG.md)
 - [ProtoBuf 使用指南](../docs/ProtoBuf_使用指南.md)
 - [OpenPGP 加密住址使用指南](../docs/OpenPGP_加密住址使用指南.md)
-
----
-
-**版本**: v1.2.0  
-**最后更新**: 2026-04-05

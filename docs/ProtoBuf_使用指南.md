@@ -2,7 +2,7 @@
 
 ## 概述
 
-本项目使用 Protocol Buffers (ProtoBuf) 进行云湖 WebSocket 消息的序列化和反序列化。所有 ProtoBuf 定义都来自官方 API 文档,确保与云湖服务器完全兼容。
+本项目使用 Protocol Buffers (ProtoBuf) 进行云湖通信的序列化和反序列化。所有 ProtoBuf 定义都来自云湖活跃开发者用户的[第三方用户 API 文档](https://yh-api.yyyyt.top/)，确保与云湖服务器完全兼容。
 
 **重要提示**: 云湖API对ProtoBuf的支持是混合的:
 - ✅ **大多数用户API**: 必须使用 ProtoBuf (如登录、发送消息、心跳等)
@@ -10,7 +10,7 @@
 
 本项目的序列化器会自动处理这种情况:
 1. 优先尝试使用 ProtoBuf
-2. 如果 ProtoBuf 失败,自动降级到 JSON
+2. 如果 ProtoBuf 失败，自动降级到 JSON
 3. 记录哪些消息类型使用了降级
 
 ## 文件结构
@@ -64,7 +64,7 @@ bash compile.sh
 
 ## 支持的 ProtoBuf 消息类型
 
-根据 [yunhu.proto](yunhu.proto),以下消息类型已实现:
+[yunhu.proto](yunhu.proto) 包含了第三方文档中重要的消息类型，具体如下:
 
 ### WebSocket 基础消息
 - `WSLogin` - WebSocket 登录
@@ -264,7 +264,7 @@ def on_message(ws, message):
 
 ## 降级机制
 
-如果 ProtoBuf 模块未编译或导入失败,序列化器会自动降级到 JSON 格式:
+如果 ProtoBuf 模块未编译或导入失败，序列化器会自动降级到 JSON 格式:
 
 ```python
 # 首次使用时会尝试导入 ProtoBuf
@@ -305,7 +305,7 @@ if status['proto_errors']:
 
 **注意**: 
 - JSON 格式功能完全相同,但性能和带宽效率略低于 ProtoBuf
-- 对于必须使用 ProtoBuf 的 API,降级可能导致服务器拒绝请求
+- 对于必须使用 ProtoBuf 的 API，降级可能导致服务器拒绝请求
 - 建议定期检查 ProtoBuf 错误日志,确保关键API正常工作
 
 ## 性能对比

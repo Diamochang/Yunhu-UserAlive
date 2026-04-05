@@ -20,7 +20,7 @@ workon yunhu-useralive
 ```bash
 # 方法 A: 使用 Git（推荐）
 cd ~
-git clone <your-repo-url> Yunhu-UserAlive
+git clone https://github.com/Diamochang/Yunhu-UserAlive.git Yunhu-UserAlive
 cd Yunhu-UserAlive
 
 # 方法 B: 使用上传文件
@@ -60,7 +60,7 @@ python init_user_example.py
 
 1. **Web → Add a new web app**
 2. 选择 **Manual configuration**
-3. Python 版本选择 **3.9**
+3. Python 版本选择 **3.12**
 4. Virtualenv 设置为: `/home/YOUR_USERNAME/.virtualenvs/yunhu-useralive`
 5. WSGI 配置文件编辑为:
 

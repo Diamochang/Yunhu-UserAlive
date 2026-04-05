@@ -42,7 +42,7 @@ cd Yunhu-UserAlive
 
 # 克隆代码（或上传代码）
 # 如果使用 Git:
-# git clone <your-repo-url> .
+# git clone https://github.com/Diamochang/Yunhu-UserAlive.git .
 ```
 
 ### 步骤 3: 安装依赖
